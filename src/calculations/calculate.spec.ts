@@ -100,6 +100,18 @@ describe('calculations', () => {
     ).toThrow(/Quantity/);
   });
 
+  it('rejects zero unit price', () => {
+    expect(() =>
+      computeLineBreakdown({
+        quantity: 1,
+        unitPriceCents: 0,
+        discountType: DiscountType.None,
+        discountValue: 0,
+        taxPercent: 0,
+      }),
+    ).toThrow(/Unit price/);
+  });
+
   it('rejects negative unit price', () => {
     expect(() =>
       computeLineBreakdown({
@@ -110,5 +122,17 @@ describe('calculations', () => {
         taxPercent: 0,
       }),
     ).toThrow(/Unit price/);
+  });
+
+  it('rejects tax percent greater than 100', () => {
+    expect(() =>
+      computeLineBreakdown({
+        quantity: 1,
+        unitPriceCents: 1000,
+        discountType: DiscountType.None,
+        discountValue: 0,
+        taxPercent: 101,
+      }),
+    ).toThrow(/Tax percent/);
   });
 });

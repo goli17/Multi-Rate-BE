@@ -17,11 +17,11 @@ export function computeLineBreakdown(line: LineInput): LineBreakdown {
   if (!Number.isInteger(line.quantity) || line.quantity < 1) {
     throw new CalculationError('Quantity must be an integer >= 1');
   }
-  if (!Number.isInteger(line.unitPriceCents) || line.unitPriceCents < 0) {
-    throw new CalculationError('Unit price must be >= 0 (in cents)');
+  if (!Number.isInteger(line.unitPriceCents) || line.unitPriceCents <= 0) {
+    throw new CalculationError('Unit price must be greater than 0');
   }
-  if (line.taxPercent < 0) {
-    throw new CalculationError('Tax percent must be >= 0');
+  if (line.taxPercent < 0 || line.taxPercent > 100) {
+    throw new CalculationError('Tax percent must be between 0 and 100');
   }
 
   const subtotalCents = line.quantity * line.unitPriceCents;

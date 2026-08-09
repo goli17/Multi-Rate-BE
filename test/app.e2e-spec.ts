@@ -5,6 +5,7 @@ import { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { AllExceptionsFilter } from '../src/common/all-exceptions.filter';
+import { MailService } from '../src/mail/mail.service';
 
 describe('Multi-Rate API (e2e)', () => {
   let app: INestApplication<App>;
@@ -37,9 +38,16 @@ describe('Multi-Rate API (e2e)', () => {
   ];
 
   beforeAll(async () => {
+    process.env.OTP_FIXED_CODE = '123456';
+    process.env.OTP_SKIP_SEND = 'true';
+    process.env.SKIP_EMAIL_VERIFICATION = 'false';
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(MailService)
+      .useValue({ sendOtp: async () => undefined })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api/v1');
@@ -55,17 +63,24 @@ describe('Multi-Rate API (e2e)', () => {
     await app.init();
 
     const suffix = Date.now();
-    const signupA = await request(app.getHttpServer())
-      .post('/api/v1/auth/signup')
-      .send({ email: `a${suffix}@example.com`, password: 'password123' });
-    const signupB = await request(app.getHttpServer())
-      .post('/api/v1/auth/signup')
-      .send({ email: `b${suffix}@example.com`, password: 'password123' });
-    tokenA = signupA.body.accessToken;
-    tokenB = signupB.body.accessToken;
-  });
+    async function signupAndVerify(email: string) {
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/signup')
+        .send({ email, password: 'password123' })
+        .expect(201);
+      const verified = await request(app.getHttpServer())
+        .post('/api/v1/auth/verify-otp')
+        .send({ email, code: '123456' })
+        .expect(201);
+      return verified.body.accessToken as string;
+    }
+
+    tokenA = await signupAndVerify(`a${suffix}@example.com`);
+    tokenB = await signupAndVerify(`b${suffix}@example.com`);
+  }, 60000);
 
   afterAll(async () => {
+    if (!app) return;
     const ds = app.get(DataSource);
     await ds.destroy();
     await app.close();

@@ -16,15 +16,20 @@ import { UsersModule } from './users/users.module';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        url: config.getOrThrow<string>('DATABASE_URL'),
-        entities: [User, Document, LineItem],
-        synchronize: config.get<string>('NODE_ENV') !== 'production',
-        ssl: config.get<string>('DATABASE_SSL') === 'true'
-          ? { rejectUnauthorized: false }
-          : false,
-      }),
+      useFactory: (config: ConfigService) => {
+        const url = config.getOrThrow<string>('DATABASE_URL');
+        const needsSsl =
+          config.get<string>('DATABASE_SSL') === 'true' ||
+          url.includes('sslmode=require') ||
+          url.includes('neon.tech');
+        return {
+          type: 'postgres' as const,
+          url,
+          entities: [User, Document, LineItem],
+          synchronize: config.get<string>('NODE_ENV') !== 'production',
+          ssl: needsSsl ? { rejectUnauthorized: false } : false,
+        };
+      },
     }),
     UsersModule,
     AuthModule,

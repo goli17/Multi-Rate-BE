@@ -1,51 +1,59 @@
-# Multi-Rate Pricing API
+# Multi-Rate Pricing Calculator — API
 
-NestJS + TypeORM + PostgreSQL backend for the Multi-Rate Pricing Calculator.
+NestJS + TypeORM + PostgreSQL backend for documents with line-item discounts, tax, draft → finalize lifecycle, and date-range reports.
+
+Companion frontend: `Multi-Rate-Fe`.
 
 ## Prerequisites
 
 - Node.js 20+
-- PostgreSQL 14+
 - npm
+- PostgreSQL 14+ (local or hosted, e.g. Neon)
 
 ## Setup
 
 ```bash
 cp .env.example .env
-# Edit DATABASE_URL and JWT_SECRET
+# Set DATABASE_URL, JWT_SECRET, and CORS_ORIGIN
 npm install
 npm run start:dev
 ```
 
-API base URL: `http://localhost:3000/api/v1`
-
+API base: `http://localhost:3000/api/v1`  
 Health: `GET /api/v1/health`
 
-## Environment
+### Environment
 
 | Variable | Description |
 |---|---|
 | `DATABASE_URL` | Postgres connection string |
 | `JWT_SECRET` | JWT signing secret |
 | `PORT` | Default `3000` |
-| `CORS_ORIGIN` | Frontend origin |
-| `DATABASE_SSL` | Set `true` for hosted Postgres (Neon, etc.) |
+| `CORS_ORIGIN` | Comma-separated frontend origins (e.g. `http://localhost:5173,http://localhost:5174`) |
+| `DATABASE_SSL` | `true` for hosted Postgres (Neon, etc.) |
 | `NODE_ENV` | `production` disables TypeORM `synchronize` |
+| `EMAIL_PROVIDER` | `smtp` when using Brevo (or similar) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` | SMTP credentials |
+| `EMAIL_FROM` | Verified sender address |
+| `SKIP_EMAIL_VERIFICATION` | `true` skips OTP (local / until SMTP works). Set `false` in production when email works. |
+| `OTP_FIXED_CODE` / `OTP_SKIP_SEND` | Optional local/e2e helpers — never use in production |
 
 ## API overview
 
-### Auth
-- `POST /auth/signup` `{ email, password }`
-- `POST /auth/login` `{ email, password }`
+All document and report routes require `Authorization: Bearer <token>`.
 
-All document/report routes require `Authorization: Bearer <token>`.
+### Auth
+- `POST /auth/signup` `{ email, password }` → OTP challenge, or JWT if `SKIP_EMAIL_VERIFICATION=true`
+- `POST /auth/verify-otp` `{ email, code }` → JWT
+- `POST /auth/resend-otp` `{ email }`
+- `POST /auth/login` `{ email, password }` → JWT
 
 ### Documents
 - `GET /documents`
 - `POST /documents`
 - `GET /documents/:id`
-- `PATCH /documents/:id` (draft only)
-- `DELETE /documents/:id` (draft only)
+- `PATCH /documents/:id` — draft only
+- `DELETE /documents/:id` — draft only
 - `POST /documents/:id/finalize`
 - `POST /documents/:id/lines`
 - `PATCH /documents/:id/lines/:lineId`
@@ -54,13 +62,25 @@ All document/report routes require `Authorization: Bearer <token>`.
 ### Reports
 - `GET /reports/summary?from=YYYY-MM-DD&to=YYYY-MM-DD`
 
+Returns `documentCount`, `sumGrandTotals`, `sumTotalTax`, `sumTotalDiscount` for the authenticated user’s documents in the issue-date range.
+
 ## Calculation and rounding policy
 
-- Money is stored as **integer cents**.
-- Per line: `subtotal = qty × unitPrice`.
-- Apply **either** percent or fixed discount (never both), then tax on the discounted amount.
-- Round to the **nearest cent** after discount and after tax on each line.
-- Document totals sum the rounded line amounts.
+**Source of truth is the server.** The client only displays amounts returned by the API. Totals are never trusted from the browser.
+
+### Money handling
+- Stored and computed as **integer cents** to avoid floating-point drift.
+- Convert dollars → cents on input; convert cents → dollars on response.
+
+### Per line (order matters)
+1. `subtotal = quantity × unitPrice`
+2. Apply **either** a percent discount **or** a fixed discount (never both)
+3. Apply tax percent on the **discounted** line amount
+4. `lineTotal = afterDiscount + tax`
+
+### Rounding
+- Round to the **nearest cent** after the discount step and after the tax step on each line.
+- Document totals are the **sum of already-rounded line amounts** (not a re-round of a floating grand total).
 
 ### Worked example (assignment sample)
 
@@ -72,41 +92,55 @@ All document/report routes require `Authorization: Bearer <token>`.
 
 Document: subtotal **450.00**, discount **40.00**, tax **11.50**, grand total **421.50**.
 
-### Other rules
+### Validation rules
+- Quantity must be an integer ≥ 1; **unit price must be greater than 0**
+- Each document stores a **currency** (ISO 4217 codes such as `USD`, `EUR`, `INR`, …); report summary filters by currency
+- Percent discount and tax percent must be between **0 and 100** (percent/fixed discount amounts must be &gt; 0 when used)
+- Percent and fixed discount cannot both be set on a line
+- Fixed discount **greater than** that line’s subtotal is **rejected** (not clamped)
+- Invalid input returns **400** with a specific message
 
-- Fixed discount greater than line subtotal is **rejected** (not clamped).
-- Finalized documents are **immutable** via the API (`409 Conflict`).
-- Totals are always computed **server-side**.
+## Finalize / immutability
+
+| Status | Behavior |
+|---|---|
+| `draft` | Fully editable (metadata + lines) |
+| `finalized` | Read-only |
+
+- `POST /documents/:id/finalize` moves a draft to finalized (rejects empty documents / invalid lines).
+- Any edit, delete, add-line, or second finalize on a finalized document returns **409 Conflict** with a clear message.
+- **Duplicate finalized → new draft** is not implemented (optional stretch).
 
 ## Assumptions and tradeoffs
 
-- Email/password auth with JWT (7-day expiry); no email verification.
-- TypeORM `synchronize` is enabled outside production for faster local setup.
-- Line `discountValue` stores percent points or fixed cents depending on `discountType`.
-- Concurrent draft edits use last-write-wins; finalize runs in a DB transaction.
+- Email OTP via SMTP (Brevo). While SMTP activation is blocked, `SKIP_EMAIL_VERIFICATION=true` allows signup/login with JWT for development.
+- TypeORM `synchronize` is on outside production for faster local setup; use migrations before production.
+- Line storage uses `discountType` + `discountValue` (percent points or fixed cents).
+- Concurrent draft edits are last-write-wins; finalize runs inside a DB transaction.
+- Users only see their own documents (ownership enforced by `userId`).
 
 ## Tests
 
 ```bash
-npm test                 # unit tests (calculations)
+npm test                 # calculation unit tests (highest-value surface)
 npm run test:e2e         # API integration tests (requires DATABASE_URL)
 ```
 
 ## What to improve before production
 
-- Replace `synchronize` with migrations.
-- Add refresh tokens / password reset.
-- Rate-limit auth endpoints.
-- Paginate document lists.
-- Snapshot audit log for status changes.
-- Deploy with managed Postgres SSL and secrets manager.
+- Replace `synchronize` with versioned migrations
+- Turn off `SKIP_EMAIL_VERIFICATION`; require verified SMTP sender
+- Refresh tokens / password reset / rate-limit auth
+- Paginate document lists; add audit log for finalize
+- Deploy with secrets manager and managed Postgres SSL
+- Optional: duplicate finalized → draft; printable PDF/HTML view
 
 ## Deployed URL
 
-_Add production API URL here after deploy._
+_Add the public frontend URL (and API URL) here after deploy._
 
 ### Suggested deploy
 
-1. Provision Postgres (Neon/Render) and set `DATABASE_URL`, `DATABASE_SSL=true`, `JWT_SECRET`, `CORS_ORIGIN`.
-2. Deploy this API to Render/Railway (`npm run build` → `npm run start:prod`).
-3. Deploy `Multi-Rate-Fe` to Vercel with `VITE_API_URL` pointing at the API `/api/v1`.
+1. Provision Postgres (Neon/Render); set `DATABASE_URL`, `DATABASE_SSL=true`, `JWT_SECRET`, `CORS_ORIGIN`.
+2. Deploy this API (`npm run build` → `npm run start:prod`) to Render/Railway/Fly.
+3. Deploy `Multi-Rate-Fe` to Vercel/Netlify with `VITE_API_URL` pointing at `{API}/api/v1`.

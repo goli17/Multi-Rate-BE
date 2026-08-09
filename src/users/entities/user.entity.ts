@@ -11,20 +11,29 @@ import { Document } from '../../documents/entities/document.entity';
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column({ unique: true })
-  email: string;
+  email!: string;
 
   @Column()
-  passwordHash: string;
+  passwordHash!: string;
+
+  @Column({ default: false })
+  emailVerified!: boolean;
+
+  @Column({ type: 'varchar', nullable: true })
+  otpHash!: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  otpExpiresAt!: Date | null;
 
   @OneToMany(() => Document, (document) => document.user)
-  documents: Document[];
+  documents!: Document[];
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

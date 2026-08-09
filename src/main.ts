@@ -19,7 +19,10 @@ async function bootstrap() {
   );
   app.useGlobalFilters(new AllExceptionsFilter());
   app.enableCors({
-    origin: config.get<string>('CORS_ORIGIN') ?? 'http://localhost:5173',
+    origin: 
+      config.get<string>('CORS_ORIGIN')?.split(',')
+      .map((origin: string) => origin.trim())
+      .filter((origin: string) => origin !== '') ?? [],
     credentials: true,
   });
 

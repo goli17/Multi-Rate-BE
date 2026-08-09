@@ -26,6 +26,9 @@ export class Document {
   @Column({ type: 'date' })
   issueDate: string;
 
+  @Column({ type: 'varchar', length: 3, default: 'USD' })
+  currency: string;
+
   @Column({ type: 'enum', enum: DocumentStatus, default: DocumentStatus.Draft })
   status: DocumentStatus;
 

@@ -12,6 +12,11 @@ export class ReportsController {
 
   @Get('summary')
   summary(@CurrentUser() user: AuthUser, @Query() query: SummaryQueryDto) {
-    return this.reportsService.summary(user.userId, query.from, query.to);
+    return this.reportsService.summary(
+      user.userId,
+      query.from,
+      query.to,
+      query.currency ?? 'USD',
+    );
   }
 }
