@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+build/
+out/
+**/dist/
+
+# Nested package bins / local installs
+bin/
+.yarn/
+.pnp.*
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Logs & OS
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Tests & coverage
+coverage/
+.nyc_output/
+*.lcov
+
+# Nest / TypeScript caches
+*.tsbuildinfo
+.turbo/
+
+# IDE (keep launch.json tracked if present under .vscode)
+.idea/
+*.swp
