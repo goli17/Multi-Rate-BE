@@ -32,10 +32,11 @@ Health: `GET /api/v1/health`
 | `CORS_ORIGIN` | Comma-separated frontend origins (e.g. `http://localhost:5173,http://localhost:5174`) |
 | `DATABASE_SSL` | `true` for hosted Postgres (Neon, etc.) |
 | `NODE_ENV` | `production` disables TypeORM `synchronize` |
-| `EMAIL_PROVIDER` | `smtp` when using Brevo (or similar) |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` | SMTP credentials |
+| `EMAIL_PROVIDER` | `brevo` (HTTPS API, recommended on Render) or `smtp` |
+| `BREVO_API_KEY` | Brevo API key (Settings → SMTP & API → API Keys). Prefer this over SMTP on Render. |
 | `EMAIL_FROM` | Verified sender address |
-| `SKIP_EMAIL_VERIFICATION` | `true` skips OTP (local / until SMTP works). Set `false` in production when email works. |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` | Optional SMTP fallback (often blocked on Render) |
+| `SKIP_EMAIL_VERIFICATION` | `true` skips OTP (local / until email works). Set `false` in production when email works. |
 | `OTP_FIXED_CODE` / `OTP_SKIP_SEND` | Optional local/e2e helpers — never use in production |
 
 ## API overview
@@ -113,7 +114,7 @@ Document: subtotal **450.00**, discount **40.00**, tax **11.50**, grand total **
 
 ## Assumptions and tradeoffs
 
-- Email OTP via SMTP (Brevo). While SMTP activation is blocked, `SKIP_EMAIL_VERIFICATION=true` allows signup/login with JWT for development.
+- Email OTP via Brevo HTTPS API (preferred) or SMTP. On Render, use `EMAIL_PROVIDER=brevo` + `BREVO_API_KEY` — outbound SMTP often times out. `SKIP_EMAIL_VERIFICATION=true` allows signup/login without OTP until email works.
 - TypeORM `synchronize` is on outside production for faster local setup; use migrations before production.
 - Line storage uses `discountType` + `discountValue` (percent points or fixed cents).
 - Concurrent draft edits are last-write-wins; finalize runs inside a DB transaction.
@@ -129,7 +130,7 @@ npm run test:e2e         # API integration tests (requires DATABASE_URL)
 ## What to improve before production
 
 - Replace `synchronize` with versioned migrations
-- Turn off `SKIP_EMAIL_VERIFICATION`; require verified SMTP sender
+- Turn off `SKIP_EMAIL_VERIFICATION`; set `BREVO_API_KEY` + verified `EMAIL_FROM`
 - Refresh tokens / password reset / rate-limit auth
 - Paginate document lists; add audit log for finalize
 - Deploy with secrets manager and managed Postgres SSL
