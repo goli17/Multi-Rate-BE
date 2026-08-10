@@ -13,6 +13,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateDocumentDto, CreateLineItemDto } from './dto/create-document.dto';
+import { BulkAddLinesDto } from './dto/bulk-add-lines.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 import { UpdateLineItemDto } from './dto/update-line-item.dto';
 import { DocumentsService } from './documents.service';
@@ -63,6 +64,15 @@ export class DocumentsController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.documentsService.finalize(user.userId, id);
+  }
+
+  @Post(':id/lines/bulk')
+  addLines(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: BulkAddLinesDto,
+  ) {
+    return this.documentsService.addLines(user.userId, id, dto.lines);
   }
 
   @Post(':id/lines')

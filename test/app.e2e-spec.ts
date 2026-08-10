@@ -172,23 +172,57 @@ describe('Multi-Rate API (e2e)', () => {
       .expect(404);
   });
 
-  it('returns summary report totals', async () => {
-    await request(app.getHttpServer())
+  it('returns summary report totals for finalized documents only', async () => {
+    const created = await request(app.getHttpServer())
       .post('/api/v1/documents')
       .set('Authorization', `Bearer ${tokenA}`)
       .send({
         title: 'Report doc',
         customer: 'Acme',
         issueDate: '2026-08-09',
+        currency: 'USD',
         lineItems: sampleLines,
-      });
+      })
+      .expect(201);
+
+    // Drafts must not appear in the report
+    const draftReport = await request(app.getHttpServer())
+      .get(
+        '/api/v1/reports/summary?from=2026-08-01&to=2026-08-31&currency=USD',
+      )
+      .set('Authorization', `Bearer ${tokenA}`)
+      .expect(200);
+    expect(
+      (draftReport.body.documents as { id: string }[]).some(
+        (d) => d.id === created.body.id,
+      ),
+    ).toBe(false);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/documents/${created.body.id}/finalize`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .expect(201);
 
     const res = await request(app.getHttpServer())
-      .get('/api/v1/reports/summary?from=2026-08-01&to=2026-08-31')
+      .get(
+        '/api/v1/reports/summary?from=2026-08-01&to=2026-08-31&currency=USD',
+      )
       .set('Authorization', `Bearer ${tokenA}`)
       .expect(200);
 
     expect(res.body.documentCount).toBeGreaterThanOrEqual(1);
-    expect(res.body.sumGrandTotals).toBeGreaterThanOrEqual(421.5);
+    expect(res.body.totalsByCurrency?.length).toBeGreaterThanOrEqual(1);
+    expect(
+      (res.body.documents as { id: string; status: string }[]).some(
+        (d) => d.id === created.body.id && d.status === 'finalized',
+      ),
+    ).toBe(true);
+    const usd = (
+      res.body.totalsByCurrency as {
+        currency: string;
+        sumGrandTotals: number;
+      }[]
+    ).find((t) => t.currency === 'USD');
+    expect(usd?.sumGrandTotals).toBeGreaterThanOrEqual(421.5);
   });
 });

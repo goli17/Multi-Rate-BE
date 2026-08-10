@@ -160,6 +160,32 @@ export class DocumentsService {
     }
   }
 
+  async addLines(userId: string, documentId: string, lines: CreateLineItemDto[]) {
+    try {
+      const doc = await this.requireOwned(documentId, userId);
+      this.assertDraft(doc);
+      const created = lines.map((dto) => {
+        const line = this.buildLineEntity(dto);
+        line.documentId = doc.id;
+        return line;
+      });
+      doc.lineItems = [...(doc.lineItems ?? []), ...created];
+      this.applyTotals(doc);
+      await this.documentsRepo.save(doc);
+      this.logger.log(
+        `Bulk imported ${created.length} line(s) on document=${documentId}`,
+      );
+      return mapDocument(await this.requireOwned(documentId, userId));
+    } catch (error: unknown) {
+      rethrowHttpOrWrap(
+        error,
+        this.logger,
+        'addLines',
+        'Could not import line items.',
+      );
+    }
+  }
+
   async updateLine(
     userId: string,
     documentId: string,

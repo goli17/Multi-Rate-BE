@@ -57,13 +57,14 @@ All document and report routes require `Authorization: Bearer <token>`.
 - `DELETE /documents/:id` — draft only
 - `POST /documents/:id/finalize`
 - `POST /documents/:id/lines`
+- `POST /documents/:id/lines/bulk` — `{ lines: [...] }` add many line items at once (Excel import)
 - `PATCH /documents/:id/lines/:lineId`
 - `DELETE /documents/:id/lines/:lineId`
 
 ### Reports
-- `GET /reports/summary?from=YYYY-MM-DD&to=YYYY-MM-DD`
+- `GET /reports/summary?from=YYYY-MM-DD&to=YYYY-MM-DD&currencies=USD,INR`
 
-Returns `documentCount`, `sumGrandTotals`, `sumTotalTax`, `sumTotalDiscount` for the authenticated user’s documents in the issue-date range.
+Returns **finalized** documents in the issue-date range. `currencies` is optional (comma-separated or repeated); omit it to include all currencies. Response includes `documents[]` and `totalsByCurrency[]` (totals are never mixed across currencies).
 
 ## Calculation and rounding policy
 

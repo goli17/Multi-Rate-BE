@@ -12,11 +12,15 @@ export class ReportsController {
 
   @Get('summary')
   summary(@CurrentUser() user: AuthUser, @Query() query: SummaryQueryDto) {
+    const currencies = [
+      ...(query.currencies ?? []),
+      ...(query.currency ? [query.currency] : []),
+    ];
     return this.reportsService.summary(
       user.userId,
       query.from,
       query.to,
-      query.currency ?? 'USD',
+      currencies,
     );
   }
 }
